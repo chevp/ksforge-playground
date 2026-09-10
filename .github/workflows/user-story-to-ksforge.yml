@@ -1,0 +1,99 @@
+name: User Story to ksforge
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'user-stories/*.md'
+  workflow_dispatch:
+    inputs:
+      story_markdown:
+        description: 'User-Story als Markdown (# Titel, ## Beschreibung, ## Akzeptanzkriterien)'
+        required: true
+        type: string
+      file_name:
+        description: 'Dateiname unter user-stories/ (optional, ohne Pfad)'
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  convert-and-forward:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Write manually pasted story to file
+        if: github.event_name == 'workflow_dispatch'
+        id: manual
+        env:
+          STORY_MARKDOWN: ${{ inputs.story_markdown }}
+          FILE_NAME: ${{ inputs.file_name }}
+        run: |
+          mkdir -p user-stories
+          NAME="$FILE_NAME"
+          if [ -z "$NAME" ]; then
+            NAME="manual-story-${{ github.run_number }}.md"
+          fi
+          case "$NAME" in
+            */*|*..*) echo "file_name must not contain '/' or '..'" >&2; exit 1 ;;
+          esac
+          printf '%s\n' "$STORY_MARKDOWN" > "user-stories/$NAME"
+          echo "file=user-stories/$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Determine input user story files
+        id: changed
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FILES="${{ steps.manual.outputs.file }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
+              BEFORE=$(git rev-list --max-parents=0 HEAD)
+            fi
+            FILES=$(git diff --name-only --diff-filter=ACM "$BEFORE" "${{ github.sha }}" -- 'user-stories/*.md')
+          fi
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        if: steps.changed.outputs.files != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Convert markdown user stories to JSON
+        if: steps.changed.outputs.files != ''
+        id: convert
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: node scripts/md-to-story-json.mjs
+
+      - name: Commit generated story JSON
+        if: steps.changed.outputs.files != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .ksforge-playground/story-counter.txt user-stories/json
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            git add "${{ steps.manual.outputs.file }}"
+          fi
+          git diff --cached --quiet || git commit -m "chore: generate story JSON from markdown [skip ci]"
+          git push
+
+      # ksforge (https://github.com/chevp/ksforge) has no action.yml yet, so
+      # the input name(s) below are placeholders — adjust once its interface
+      # is defined. It turns user stories into Claude Code workflows, so it
+      # needs Anthropic API access via ANTHROPIC_API_KEY.
+      - name: Process story with ksforge
+        if: steps.changed.outputs.files != ''
+        uses: chevp/ksforge@main
+        with:
+          user-story-json: ${{ steps.convert.outputs.json_paths }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
