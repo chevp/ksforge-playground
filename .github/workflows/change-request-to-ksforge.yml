@@ -15,14 +15,18 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  # `contents: write` alone is not enough to push a commit that adds or
-  # modifies a `.github/workflows/*.yml` file — GitHub gates that
-  # separately (confirmed against a real failure: "refusing to allow a
-  # GitHub App to create or update workflow ... without `workflows`
-  # permission") — and a playground repo is exactly the place a change
-  # request plausibly asks for a new workflow (as happened here, for a
-  # GitHub Pages deploy workflow).
-  workflows: write
+  # There is no `permissions:` key that lets the default GITHUB_TOKEN push
+  # a commit touching `.github/workflows/*.yml` — confirmed the hard way:
+  # `workflows: write` here isn't a real permissions-block key at all
+  # ("Unexpected value 'workflows'", a whole-file parse error, worse than
+  # the runtime rejection it was meant to fix). The "workflow" scope that
+  # actually gates this only exists on a Personal Access Token (classic
+  # PAT, scope named "workflow") or a GitHub App installation token — never
+  # on GITHUB_TOKEN, regardless of what's granted here. A change request
+  # that asks for a new/changed workflow file will still get implemented
+  # and diffed, but ksforge's own push then fails and nothing reaches
+  # GitHub; see docs/07-github-actions.md in the ksforge repo if you want
+  # to enable this by supplying your own PAT.
 
 jobs:
   detect:
