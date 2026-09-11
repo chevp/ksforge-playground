@@ -86,19 +86,20 @@ jobs:
       # `detect`'s own step above pushes the new inbox file as a *new*
       # commit on top of that trigger sha, so checking out `github.sha`
       # here would predate it and the file wouldn't exist yet.
-      # `token:` falls back to the default GITHUB_TOKEN when
-      # WORKFLOW_SCOPED_PAT isn't set (empty secret is falsy in `||`), so
-      # this is a no-op change of behavior until you opt in. To let a
-      # change request push .github/workflows/* changes: generate a
-      # classic PAT with the "workflow" (and "repo") scope at
-      # https://github.com/settings/tokens, add it as a repository secret
-      # named WORKFLOW_SCOPED_PAT — checkout then persists it as this
-      # job's git credential, so ksforge's own `git push` picks it up too.
+      #
+      # A `token: ${{ secrets.WORKFLOW_SCOPED_PAT || secrets.GITHUB_TOKEN }}`
+      # override was tried here to let a change request push
+      # .github/workflows/* changes once a PAT secret exists (see
+      # docs/07-github-actions.md in the ksforge repo) — reverted: it broke
+      # this checkout outright ("could not read Username ... terminal
+      # prompts disabled") even with no PAT set, i.e. even the fallback arm
+      # regressed the previously-working plain default. Add the `token:`
+      # line back yourself once WORKFLOW_SCOPED_PAT actually exists, rather
+      # than relying on this comment's memory of the exact failure.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: main
-          token: ${{ secrets.WORKFLOW_SCOPED_PAT || secrets.GITHUB_TOKEN }}
 
       # Each job runs on its own fresh runner — `detect`'s own git-identity
       # config above does not carry over here, this is a separate checkout
