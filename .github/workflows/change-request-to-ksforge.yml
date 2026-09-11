@@ -15,6 +15,14 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # `contents: write` alone is not enough to push a commit that adds or
+  # modifies a `.github/workflows/*.yml` file — GitHub gates that
+  # separately (confirmed against a real failure: "refusing to allow a
+  # GitHub App to create or update workflow ... without `workflows`
+  # permission") — and a playground repo is exactly the place a change
+  # request plausibly asks for a new workflow (as happened here, for a
+  # GitHub Pages deploy workflow).
+  workflows: write
 
 jobs:
   detect:
