@@ -22,11 +22,8 @@ permissions:
   # the runtime rejection it was meant to fix). The "workflow" scope that
   # actually gates this only exists on a Personal Access Token (classic
   # PAT, scope named "workflow") or a GitHub App installation token — never
-  # on GITHUB_TOKEN, regardless of what's granted here. A change request
-  # that asks for a new/changed workflow file will still get implemented
-  # and diffed, but ksforge's own push then fails and nothing reaches
-  # GitHub; see docs/07-github-actions.md in the ksforge repo if you want
-  # to enable this by supplying your own PAT.
+  # on GITHUB_TOKEN, regardless of what's granted here. See the
+  # WORKFLOW_SCOPED_PAT fallback on `process`'s checkout below.
 
 jobs:
   detect:
@@ -89,10 +86,19 @@ jobs:
       # `detect`'s own step above pushes the new inbox file as a *new*
       # commit on top of that trigger sha, so checking out `github.sha`
       # here would predate it and the file wouldn't exist yet.
+      # `token:` falls back to the default GITHUB_TOKEN when
+      # WORKFLOW_SCOPED_PAT isn't set (empty secret is falsy in `||`), so
+      # this is a no-op change of behavior until you opt in. To let a
+      # change request push .github/workflows/* changes: generate a
+      # classic PAT with the "workflow" (and "repo") scope at
+      # https://github.com/settings/tokens, add it as a repository secret
+      # named WORKFLOW_SCOPED_PAT — checkout then persists it as this
+      # job's git credential, so ksforge's own `git push` picks it up too.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: main
+          token: ${{ secrets.WORKFLOW_SCOPED_PAT || secrets.GITHUB_TOKEN }}
 
       # Each job runs on its own fresh runner — `detect`'s own git-identity
       # config above does not carry over here, this is a separate checkout
