@@ -87,19 +87,22 @@ jobs:
       # commit on top of that trigger sha, so checking out `github.sha`
       # here would predate it and the file wouldn't exist yet.
       #
-      # A `token: ${{ secrets.WORKFLOW_SCOPED_PAT || secrets.GITHUB_TOKEN }}`
-      # override was tried here to let a change request push
-      # .github/workflows/* changes once a PAT secret exists (see
-      # docs/07-github-actions.md in the ksforge repo) — reverted: it broke
-      # this checkout outright ("could not read Username ... terminal
-      # prompts disabled") even with no PAT set, i.e. even the fallback arm
-      # regressed the previously-working plain default. Add the `token:`
-      # line back yourself once WORKFLOW_SCOPED_PAT actually exists, rather
-      # than relying on this comment's memory of the exact failure.
+      # token: WORKFLOW_SCOPED_PAT (classic PAT, scopes workflow + repo)
+      # lets ksforge's own later `git push` touch `.github/workflows/*` —
+      # the default GITHUB_TOKEN can never do this regardless of
+      # `permissions:` grants. A `|| secrets.GITHUB_TOKEN` fallback was
+      # tried here first and broke this checkout outright ("could not read
+      # Username ... terminal prompts disabled") *even with the real PAT
+      # secret already present* — so that failure was never about a
+      # missing/empty secret, and is still unexplained; dropped the `||`
+      # rather than keep an unexplained construct. If this bare form
+      # regresses again, the PAT itself (scopes, expiry) is the next thing
+      # to check, not the expression syntax.
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: main
+          token: ${{ secrets.WORKFLOW_SCOPED_PAT }}
 
       # Each job runs on its own fresh runner — `detect`'s own git-identity
       # config above does not carry over here, this is a separate checkout
