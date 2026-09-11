@@ -23,7 +23,7 @@ jobs:
       files: ${{ steps.collect.outputs.files }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -78,9 +78,19 @@ jobs:
       # commit on top of that trigger sha, so checking out `github.sha`
       # here would predate it and the file wouldn't exist yet.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
+
+      # Each job runs on its own fresh runner — `detect`'s own git-identity
+      # config above does not carry over here, this is a separate checkout
+      # on a separate machine. `ksforge --create-pull-request` needs one
+      # too (it runs `git commit`), matching kscura's/ksforge's own
+      # workflow.
+      - name: Configure git identity
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Read change request text
         id: change_request
