@@ -72,8 +72,15 @@ jobs:
         file: ${{ fromJson(needs.detect.outputs.files) }}
       fail-fast: false
     steps:
+      # Explicit `ref: main`, not the default (`github.sha`, frozen to the
+      # commit that triggered this run): for a workflow_dispatch input,
+      # `detect`'s own step above pushes the new inbox file as a *new*
+      # commit on top of that trigger sha, so checking out `github.sha`
+      # here would predate it and the file wouldn't exist yet.
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Read change request text
         id: change_request
